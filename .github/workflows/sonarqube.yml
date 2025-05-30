@@ -1,43 +1,47 @@
-name: Sonarqube
-
+name: SonarQube
 on:
   push:
     branches:
       - main
-
+  pull_request:
+    types: [opened, synchronize, reopened]
 jobs:
   build:
     name: Build and analyze
-    # Config your runner
-    runs-on: self-hosted
-
+    runs-on: windows-latest
     steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'zulu' # Alternative distribution options are available.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      # Install java
-      - name: Setup Java
-        uses: actions/setup-java@v3
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Cache SonarQube Cloud packages
+        uses: actions/cache@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # Download and extract sonar-scanner
-      - name: Download SonarScanner
+          path: ~\sonar\cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Cache SonarQube Cloud scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v4
+        with:
+          path: .\.sonar\scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+      - name: Install SonarQube Cloud scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell
         run: |
-          $zip = "sonar-scanner.zip"
-          $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-          Invoke-WebRequest -Uri "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-7.0.2.4839-windows-x64.zip" -OutFile $zip -Headers $headers
-          Expand-Archive -Path $zip -DestinationPath "."
-          Rename-Item -Path "sonar-scanner-7.0.2.4839-windows-x64" -NewName "sonar-scanner"
-
-      # Chạy SonarScanner trực tiếp trên Windows runner
-      - name: Run SonarScanner
-        shell: cmd
+          New-Item -Path .\.sonar\scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+      - name: Build and analyze
         env:
-          # Get secrets from github
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        shell: powershell
         run: |
-          sonar-scanner\bin\sonar-scanner.bat -D"sonar.projectKey=test-sonar-github-actions-key" -D"sonar.sources=." -D"sonar.host.url=%SONAR_HOST_URL%" -D"sonar.login=%SONAR_TOKEN%"
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"Mikado1405_Electron.NET" /o:"my-organization-sonar-cloud" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+          dotnet build
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
