@@ -33,5 +33,9 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.host.url="https://sonarcloud.io"
 
+      - name: Build Solution
+        working-directory: src
+        run: dotnet build YourSolutionName.sln
+
       - name: End SonarCloud analysis
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
