@@ -1,5 +1,4 @@
-name: SonarCloud Analysis Only
-
+name: SonarCloud Analysis
 on:
   push:
     branches:
@@ -35,7 +34,10 @@ jobs:
 
       - name: Build Solution
         working-directory: src
-        run: dotnet build YourSolutionName.sln
+        run: |
+          sln_file=$(find . -maxdepth 1 -name "*.sln" | head -n 1)
+          echo "Detected solution file: $sln_file"
+          dotnet build "$sln_file"
 
       - name: End SonarCloud analysis
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
